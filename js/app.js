@@ -1,152 +1,165 @@
-// Avoid `console` errors in browsers that lack a console.
-(function() {
-  var method;
-  var noop = function() {};
-  var methods = ['assert', 'clear', 'count', 'debug', 'dir', 'dirxml', 'error', 'exception', 'group', 'groupCollapsed', 'groupEnd', 'info', 'log', 'markTimeline', 'profile', 'profileEnd', 'table', 'time', 'timeEnd', 'timeline', 'timelineEnd', 'timeStamp', 'trace', 'warn'];
-  var length = methods.length;
-  var console = (window.console = window.console || {});
+const container = document.getElementById('container');
+const loadmore = document.getElementById('loadmore');
+const url = 'https://www.eliftech.com/school-task';
+const urlSecond = 'https://u0byf5fk31.execute-api.eu-west-1.amazonaws.com/etschool/task';
 
-  while (length--) {
-    method = methods[length];
+// load first block with expression and result
+ready(GetServerData);
 
-    // Only stub undefined methods.
-    if (!console[method]) {
-      console[method] = noop;
-    }
-  }
-}());
-if (typeof jQuery === 'undefined') {
-  console.warn('jQuery hasn\'t loaded');
-} else {
-  console.log('jQuery has loaded');
-}
-// APP start here
-$(document).ready(function($) {
+// add event to Load More button
+loadmore.addEventListener('click', GetServerData);
 
-  GetServerData();
+/////
+// MAIN FUNCTIONALITY //
+/////
 
-  $('.load-more').on('click', function() {
-    GetServerData();
-  });
-
-});
-
-
-
+// get expressions from server
 function GetServerData() {
-  $.ajax({
-    url: '/functions.php',
-    success: function(result) {
 
-      var data = $.parseJSON(result);
-      var htmlContainer = CreateResult(data);
+  fetch(url)
+    .then((resp) => resp.json())
+    .then(function(data) {
+      let htmlContainer = CreateResult(data);
+      container.innerHTML = htmlContainer;
+    })
+    .catch(function(error) {
+      console.log(error);
+    });
 
-      $('.main-container').append(htmlContainer);
-    },
-
-    error: function(result) {
-      console.log(result);
-    }
-  });
 }
 
-
+// create new node with expressions
 function CreateResult(data) {
-  var html = '<div class="container-result col-md-12" data-id="' + data.id + '">';
-  html += '<h2>ID: ' + data.id + '</h2>';
-  html += '<ul>';
+  let arr = [];
+  let html = `
+    <div class="container-result col-md-12">
+      <h2>ID: ${data.id}</h2>
+        <ul>`;
 
-  var arr = [];
-
-  $.each(data.expressions, function(index, val) {
-    console.log(val)
-    var rpn = ReversePolishNotation(val);
-    // var rpn = ReversePolishNotation('12 12 0 / 9 0 * + /');
-    html += '<li>' + val + ' = ' + rpn + '</li>';
+  data.expressions.map(function(expression) {
+    let rpn = ReversePolishNotation(expression);
+    html += `<li>${expression} = ${rpn}</li>`;
     arr.push(rpn);
-  });
+  })
 
-  html += '</ul>' + arr + '</div>';
+  let response = CheckResult(data.id, arr);
 
+  html += `</ul>
+    <p>Results: [${arr}]</p>
+    <p>Server Check: <span dataid="${data.id}" id="${data.id}"></span></p>
+  </div>`;
   return html;
 }
 
-// http://kilon.org/blog/2012/06/javascript-rpn-calculator/
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// https://www.thepolyglotdeveloper.com/2015/04/evaluate-a-reverse-polish-notation-equation-with-javascript/ //
+// calculate expression                                                                                      //
+// + mean "a - b"
+// - mean "a + b + 8"
+// * mean "a % b" (if b == 0 >> result = 42)
+// / mean "a / b" (if b == 0 >> result = 42)
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 function ReversePolishNotation(input) {
 
-  var array = input.split(/\s+/);
-  var st = [];
-  var token;
+  let resultStack = [];
+  expression = input.split(" ");
 
-  while (token = array.shift()) {
-    // check is it number
-    if (token == +token) {
-      st.push(token);
+  for (let i = 0; i < expression.length; i++) {
+    if (expression[i].isNumeric()) {
+      resultStack.push(expression[i]);
     } else {
-      var n2 = st.pop();
-      n2 = parseInt(n2);
-      var n1 = st.pop();
-      n1 = parseInt(n1);
+      let b = resultStack.pop();
+      let a = resultStack.pop();
+      let x;
 
-      var re = /^[\+\-\/\*]$/;
-
-      if (n1 != +n1 || n2 != +n2 || !re.test(token)) {
-        throw new Error('Invalid expression: ' + input);
-      }
-
-      var result;
-
-      if (token == '+') {
-        console.log( '+ -----------'  );
-        console.log(n1, ' + ', n2, ' >>> ', n1 + ' - ' + n2, ' = ');
-        console.log(eval(n1 - n2));
-        result = eval(n1 + '-' + n2);
-
-
-      } else if (token == '-') {
-        console.log( '- -----------'  );
-        console.log(n1, ' - ', n2, ' = ', ' >>> ', n1 + ' + ' + n2 + ' + 8', ' = ');
-        console.log(eval(n1 + ' + ' + n2 + ' + 8'));
-        result = eval(n1 + ' + ' + n2 + ' + 8');
-
-
-      } else if (token == '*') {
-        console.log( '* -----------'  );
-        if (n2 != 0) {
-          console.log(n1, ' * ', n2, ' = ', ' >>> ', n1 + ' % ' + n2 + ' = ' );
-          console.log(eval(n1 % n2));
-          result = eval(n1 % n2);
-
+      if (expression[i] === "+") {
+        x = parseInt(a) - parseInt(b);
+      } else if (expression[i] === "-") {
+        x = parseInt(a) + parseInt(b) + parseInt(8);
+      } else if (expression[i] === "*") {
+        if (parseInt(b) != 0) {
+          x = parseInt(a) % parseInt(b);
         } else {
-          console.log(n1, ' * ', n2, ' = ', ' >>> ', n1 + ' % ' + n2 + ' = 42' );
-          result = 42;
+          x = 42;
         }
-
-
-
-      } else if (token == '/') {
-        console.log( '/ -----------'  );
-        if (n2 != 0) {
-          console.log(n1, ' / ', n2, ' = ', ' >>> ', n1 + ' / ' + n2 + ' = ');
-          console.log(eval(n1 / n2));
-          result = eval(n1 / n2);
+      } else if (expression[i] === "/") {
+        if (parseInt(b) != 0) {
+          x = parseInt(a) / parseInt(b);
         } else {
-          console.log(n1, ' / ', n2, ' = ', ' >>> ', n1 + ' / ' + n2 + ' = 42');
-          result = 42;
+          x = 42;
         }
       }
-
-      result = parseInt(result);
-
-      st.push(result);
+      resultStack.push(parseInt(x));
 
     }
   }
-
-  if (st.length !== 1) {
-    throw new Error('Invalid expression: ' + input);
+  if (resultStack.length > 1) {
+    return "error";
+  } else {
+    return resultStack.pop();
   }
+}
 
-  return st.pop();
+// Ckeck server response
+function CheckResult(id, results) {
 
+  let payload = {
+    "id": id,
+    "results": results
+  }
+  let passed;
+
+  fetch(url, {
+      method: 'post',
+      headers: {
+        'Accept': 'application/json, text/plain, */*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(function(data) {
+      passed = data.passed;
+
+      let CheckSelector = document.querySelector('[dataid="' + data.id + '"]');
+
+      CheckSelector.innerHTML = passed;
+
+      if (passed == true) {
+        CheckSelector.style.color = "green";
+      } else {
+        CheckSelector.style.color = "red";
+      }
+
+    });
+
+
+
+}
+
+//////
+// ADDITIONAL FUNCTIONALITY //
+//////
+
+// document ready without jquery function
+function ready(fn) {
+  if (document.attachEvent ? document.readyState === "complete" : document.readyState !== "loading") {
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn);
+  }
+}
+// create node short name
+function createNode(element) {
+  return document.createElement(element);
+}
+// append node short name
+function append(parent, element) {
+  return parent.appendChild(element);
+}
+// check if the string is numeric
+// https://www.thepolyglotdeveloper.com/2015/04/evaluate-a-reverse-polish-notation-equation-with-javascript/
+String.prototype.isNumeric = function() {
+  return !isNaN(parseFloat(this)) && isFinite(this);
 }
